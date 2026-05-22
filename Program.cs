@@ -67,6 +67,7 @@ builder.Services.AddScoped<ITrainerService, TrainerService>();
 builder.Services.AddScoped<IMemberService, MemberService>();
 builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddScoped<IAttendanceService, AttendanceService>();
 
 // ── CORS (allow Angular dev + Vercel prod) ──────────────────────────────────
 builder.Services.AddCors(options =>

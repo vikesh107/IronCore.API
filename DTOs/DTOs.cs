@@ -146,6 +146,28 @@ public record UpdateSubscriptionStatusRequest(
     [Required] string Status  // Active/Expired/Cancelled
 );
 
+public record UpdateSubscriptionDatesRequest(
+    [Required] DateTime StartDate,
+    [Required] DateTime EndDate
+);
+
+// ── Attendance ────────────────────────────────────────────────────────────────
+public record AttendanceLogDto(
+    string Id,
+    string MemberId,
+    string MemberName,
+    DateOnly Date,
+    bool IsPresent,
+    string? Notes
+);
+
+public record CreateAttendanceLogRequest(
+    [Required] string MemberId,
+    [Required] DateOnly Date,
+    bool IsPresent,
+    [MaxLength(500)] string? Notes
+);
+
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 public record OwnerDashboardDto(
     int TotalMembers,

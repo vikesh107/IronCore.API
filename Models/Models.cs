@@ -113,6 +113,22 @@ public class InviteToken
     public Gym? Gym { get; set; }
 }
 
+// ── AttendanceLog ─────────────────────────────────────────────────────────────
+public class AttendanceLog
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string TrainerId { get; set; } = string.Empty;
+    public string MemberId { get; set; } = string.Empty;
+    public DateOnly Date { get; set; }
+    public bool IsPresent { get; set; } = true;
+    [MaxLength(500)] public string? Notes { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    // Nav
+    public TrainerProfile Trainer { get; set; } = null!;
+    public MemberProfile Member { get; set; } = null!;
+}
+
 // ── RefreshToken ──────────────────────────────────────────────────────────────
 public class RefreshToken
 {

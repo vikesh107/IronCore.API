@@ -280,9 +280,17 @@ public class MemberService(AppDbContext db, UserManager<AppUser> userManager) : 
     {
         var member = await db.MemberProfiles
             .Include(m => m.User)
+            .Include(m => m.Subscriptions)
             .FirstOrDefaultAsync(m => m.Id == memberId);
         if (member == null) return (false, "Member not found.");
+
         member.User.IsActive = false;
+        member.TrainerId = null;
+
+        foreach (var sub in member.Subscriptions)
+            if (sub.Status == SubscriptionStatus.Active)
+                sub.Status = SubscriptionStatus.Cancelled;
+
         await db.SaveChangesAsync();
         return (true, null);
     }
@@ -313,6 +321,7 @@ public interface ISubscriptionService
     Task<List<SubscriptionDto>> GetByMemberAsync(string memberId);
     Task<(SubscriptionDto?, string?)> CreateAsync(CreateSubscriptionRequest req);
     Task<(bool, string?)> UpdateStatusAsync(string subscriptionId, string status);
+    Task<(bool, string?)> UpdateDatesAsync(string subscriptionId, DateTime startDate, DateTime endDate);
 }
 
 public class SubscriptionService(AppDbContext db) : ISubscriptionService
@@ -373,6 +382,17 @@ public class SubscriptionService(AppDbContext db) : ISubscriptionService
         var sub = await db.Subscriptions.FindAsync(subscriptionId);
         if (sub == null) return (false, "Subscription not found.");
         sub.Status = s;
+        await db.SaveChangesAsync();
+        return (true, null);
+    }
+
+    public async Task<(bool, string?)> UpdateDatesAsync(string subscriptionId, DateTime startDate, DateTime endDate)
+    {
+        if (endDate <= startDate) return (false, "End date must be after start date.");
+        var sub = await db.Subscriptions.FindAsync(subscriptionId);
+        if (sub == null) return (false, "Subscription not found.");
+        sub.StartDate = startDate;
+        sub.EndDate = endDate;
         await db.SaveChangesAsync();
         return (true, null);
     }
@@ -479,4 +499,83 @@ public class DashboardService(AppDbContext db, IMemberService memberService) : I
 
         return new MemberDashboardDto(profile, profile.ActiveSubscription, history);
     }
+}
+
+// ── Attendance Service ────────────────────────────────────────────────────────
+public interface IAttendanceService
+{
+    Task<List<AttendanceLogDto>> GetByMemberAsync(string trainerUserId, string memberId);
+    Task<List<AttendanceLogDto>> GetByDateAsync(string trainerUserId, DateOnly date);
+    Task<(AttendanceLogDto?, string?)> UpsertAsync(string trainerUserId, CreateAttendanceLogRequest req);
+}
+
+public class AttendanceService(AppDbContext db) : IAttendanceService
+{
+    private async Task<string?> ResolveTrainerProfileId(string trainerUserId)
+    {
+        var profile = await db.TrainerProfiles.FirstOrDefaultAsync(t => t.UserId == trainerUserId);
+        return profile?.Id;
+    }
+
+    public async Task<List<AttendanceLogDto>> GetByMemberAsync(string trainerUserId, string memberId)
+    {
+        var trainerId = await ResolveTrainerProfileId(trainerUserId);
+        if (trainerId == null) return [];
+        return await db.AttendanceLogs
+            .Where(a => a.TrainerId == trainerId && a.MemberId == memberId)
+            .Include(a => a.Member).ThenInclude(m => m.User)
+            .OrderByDescending(a => a.Date)
+            .Select(a => Map(a))
+            .ToListAsync();
+    }
+
+    public async Task<List<AttendanceLogDto>> GetByDateAsync(string trainerUserId, DateOnly date)
+    {
+        var trainerId = await ResolveTrainerProfileId(trainerUserId);
+        if (trainerId == null) return [];
+        return await db.AttendanceLogs
+            .Where(a => a.TrainerId == trainerId && a.Date == date)
+            .Include(a => a.Member).ThenInclude(m => m.User)
+            .Select(a => Map(a))
+            .ToListAsync();
+    }
+
+    public async Task<(AttendanceLogDto?, string?)> UpsertAsync(string trainerUserId, CreateAttendanceLogRequest req)
+    {
+        var trainerId = await ResolveTrainerProfileId(trainerUserId);
+        if (trainerId == null) return (null, "Trainer profile not found.");
+
+        var member = await db.MemberProfiles.Include(m => m.User)
+            .FirstOrDefaultAsync(m => m.Id == req.MemberId && m.TrainerId == trainerId);
+        if (member == null) return (null, "Client not found or not assigned to you.");
+
+        var existing = await db.AttendanceLogs
+            .FirstOrDefaultAsync(a => a.TrainerId == trainerId && a.MemberId == req.MemberId && a.Date == req.Date);
+
+        if (existing != null)
+        {
+            existing.IsPresent = req.IsPresent;
+            existing.Notes = req.Notes;
+        }
+        else
+        {
+            existing = new AttendanceLog
+            {
+                TrainerId = trainerId,
+                MemberId = req.MemberId,
+                Date = req.Date,
+                IsPresent = req.IsPresent,
+                Notes = req.Notes
+            };
+            db.AttendanceLogs.Add(existing);
+        }
+
+        await db.SaveChangesAsync();
+        await db.Entry(existing).Reference(a => a.Member).LoadAsync();
+        await db.Entry(existing.Member).Reference(m => m.User).LoadAsync();
+        return (Map(existing), null);
+    }
+
+    private static AttendanceLogDto Map(AttendanceLog a) =>
+        new(a.Id, a.MemberId, a.Member.User.FullName, a.Date, a.IsPresent, a.Notes);
 }

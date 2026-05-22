@@ -14,6 +14,7 @@ public class AppDbContext : IdentityDbContext<AppUser>
     public DbSet<Subscription> Subscriptions => Set<Subscription>();
     public DbSet<InviteToken> InviteTokens => Set<InviteToken>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<AttendanceLog> AttendanceLogs => Set<AttendanceLog>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -57,6 +58,25 @@ public class AppDbContext : IdentityDbContext<AppUser>
             .HasOne(s => s.Member)
             .WithMany(m => m.Subscriptions)
             .HasForeignKey(s => s.MemberId);
+
+        // AttendanceLog → TrainerProfile
+        builder.Entity<AttendanceLog>()
+            .HasOne(a => a.Trainer)
+            .WithMany()
+            .HasForeignKey(a => a.TrainerId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // AttendanceLog → MemberProfile
+        builder.Entity<AttendanceLog>()
+            .HasOne(a => a.Member)
+            .WithMany()
+            .HasForeignKey(a => a.MemberId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // One log per member per day per trainer
+        builder.Entity<AttendanceLog>()
+            .HasIndex(a => new { a.TrainerId, a.MemberId, a.Date })
+            .IsUnique();
 
         // Indexes
         builder.Entity<InviteToken>().HasIndex(i => i.Token).IsUnique();

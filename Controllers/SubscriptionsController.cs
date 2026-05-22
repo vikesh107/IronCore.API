@@ -29,4 +29,12 @@ public class SubscriptionsController(ISubscriptionService subscriptionService) :
         var (success, err) = await subscriptionService.UpdateStatusAsync(id, req.Status);
         return err != null ? BadRequest(new { error = err }) : Ok(new { message = "Status updated." });
     }
+
+    [HttpPatch("{id}/dates")]
+    [Authorize(Policy = "OwnerOnly")]
+    public async Task<IActionResult> UpdateDates(string id, [FromBody] UpdateSubscriptionDatesRequest req)
+    {
+        var (success, err) = await subscriptionService.UpdateDatesAsync(id, req.StartDate, req.EndDate);
+        return err != null ? BadRequest(new { error = err }) : Ok(new { message = "Dates updated." });
+    }
 }
