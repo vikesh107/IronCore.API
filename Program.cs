@@ -75,7 +75,8 @@ builder.Services.AddCors(options =>
     {
         policy.WithOrigins(
             "http://localhost:4200",
-            builder.Configuration["Frontend:Url"] ?? "https://ironcore-gym.vercel.app"
+            "https://ironcore-frontend-jhuv.vercel.app",
+            builder.Configuration["Frontend:Url"] ?? ""
         )
         .AllowAnyHeader()
         .AllowAnyMethod()
